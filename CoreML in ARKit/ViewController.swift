@@ -9,22 +9,22 @@
 import UIKit
 import SceneKit
 import ARKit
-
 import Vision
 
 class ViewController: UIViewController, ARSCNViewDelegate {
 
     // SCENE
     @IBOutlet var sceneView: ARSCNView!
-    let bubbleDepth : Float = 0.01 // the 'depth' of 3D text
-    var latestPrediction : String = "…" // a variable containing the latest CoreML prediction
+    let bubbleDepth: Float = 0.01 // the 'depth' of 3D text
+    var latestPrediction: String = "…" // a variable containing the latest CoreML prediction
     let minimumConfidenceThreshhold: VNConfidence = 0.75
     var confidence: VNConfidence = 0.0
     var debugConfidence: VNConfidence = 0.10
+    var identifiedLabels = [String]() //keep track of all detected obejects so far
     
     // COREML
     var visionRequests = [VNRequest]()
-    let dispatchQueueML = DispatchQueue(label: "com.hw.dispatchqueueml") // A Serial Queue
+    let dispatchQueueML = DispatchQueue(label: "com.projectar.dispatchqueueml") // A Serial Queue
     @IBOutlet weak var debugTextView: UITextView!
     
     override func viewDidLoad() {
@@ -108,9 +108,12 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 let worldCoord : SCNVector3 = SCNVector3Make(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
                 
                 // Create 3D Text
-                let node : SCNNode = self.createNewBubbleParentNode(self.latestPrediction)
-                self.sceneView.scene.rootNode.addChildNode(node)
-                node.position = worldCoord
+                if !self.identifiedLabels.contains(self.latestPrediction) {
+                    let node : SCNNode = self.createNewBubbleParentNode(self.latestPrediction)
+                    self.sceneView.scene.rootNode.addChildNode(node)
+                    node.position = worldCoord
+                    self.identifiedLabels.append(self.latestPrediction)
+                }
             }
         }
     }
