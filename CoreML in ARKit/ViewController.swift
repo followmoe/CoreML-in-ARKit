@@ -18,6 +18,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     @IBOutlet var sceneView: ARSCNView!
     let bubbleDepth : Float = 0.01 // the 'depth' of 3D text
     var latestPrediction : String = "…" // a variable containing the latest CoreML prediction
+    let minimumConfidenceThreshhold: VNConfidence = 0.75
+    var confidence: VNConfidence = 0.0
+    var debugConfidence: VNConfidence = 0.10
     
     // COREML
     var visionRequests = [VNRequest]()
@@ -58,7 +61,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let classificationRequest = VNCoreMLRequest(model: selectedModel, completionHandler: classificationCompleteHandler)
         classificationRequest.imageCropAndScaleOption = VNImageCropAndScaleOption.centerCrop // Crop from centre of images and scale to appropriate size.
         visionRequests = [classificationRequest]
-        
+    
         // Begin Loop to Update CoreML
         loopCoreMLUpdate()
     }
@@ -92,6 +95,23 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
         DispatchQueue.main.async {
             // Do any desired updates to SceneKit here.
+            guard self.confidence >= self.minimumConfidenceThreshhold else {
+                return
+            }
+            let screenCentre : CGPoint = CGPoint(x: self.sceneView.bounds.midX, y: self.sceneView.bounds.midY)
+            
+            let arHitTestResults : [ARHitTestResult] = self.sceneView.hitTest(screenCentre, types: [.featurePoint]) // Alternatively, we could use '.existingPlaneUsingExtent' for more grounded hit-test-points.
+            
+            if let closestResult = arHitTestResults.first {
+                // Get Coordinates of HitTest
+                let transform : matrix_float4x4 = closestResult.worldTransform
+                let worldCoord : SCNVector3 = SCNVector3Make(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
+                
+                // Create 3D Text
+                let node : SCNNode = self.createNewBubbleParentNode(self.latestPrediction)
+                self.sceneView.scene.rootNode.addChildNode(node)
+                node.position = worldCoord
+            }
         }
     }
     
@@ -105,20 +125,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     @objc func handleTap(gestureRecognize: UITapGestureRecognizer) {
         // HIT TEST : REAL WORLD
         // Get Screen Centre
-        let screenCentre : CGPoint = CGPoint(x: self.sceneView.bounds.midX, y: self.sceneView.bounds.midY)
         
-        let arHitTestResults : [ARHitTestResult] = sceneView.hitTest(screenCentre, types: [.featurePoint]) // Alternatively, we could use '.existingPlaneUsingExtent' for more grounded hit-test-points.
-        
-        if let closestResult = arHitTestResults.first {
-            // Get Coordinates of HitTest
-            let transform : matrix_float4x4 = closestResult.worldTransform
-            let worldCoord : SCNVector3 = SCNVector3Make(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
-            
-            // Create 3D Text
-            let node : SCNNode = createNewBubbleParentNode(latestPrediction)
-            sceneView.scene.rootNode.addChildNode(node)
-            node.position = worldCoord
-        }
     }
     
     func createNewBubbleParentNode(_ text : String) -> SCNNode {
@@ -189,10 +196,12 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
         
         // Get Classifications
-        let classifications = observations[0...1] // top 2 results
-            .flatMap({ $0 as? VNClassificationObservation })
+        // top 2 results
+        let classifications = observations[0...1]
+            .compactMap({ $0 as? VNClassificationObservation })
             .map({ "\($0.identifier) \(String(format:"- %.2f", $0.confidence))" })
             .joined(separator: "\n")
+        
         
         
         DispatchQueue.main.async {
@@ -200,16 +209,32 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             print(classifications)
             print("--")
             
-            // Display Debug Text on screen
-            var debugText:String = ""
-            debugText += classifications
-            self.debugTextView.text = debugText
+            
             
             // Store the latest prediction
             var objectName:String = "…"
             objectName = classifications.components(separatedBy: "-")[0]
             objectName = objectName.components(separatedBy: ",")[0]
+            
+            
+            
+            
+            guard let firstObservation = observations.first, let observation = firstObservation as? VNClassificationObservation else {
+                return
+            }
+            self.confidence = observation.confidence
             self.latestPrediction = objectName
+            
+            // Display Debug Text on screen
+            var debugText:String = ""
+            debugText += classifications
+            if self.confidence > self.debugConfidence {
+                self.debugTextView.text = debugText
+            } else {
+                self.debugTextView.text = "Penis"
+            }
+            
+            
             
         }
     }
