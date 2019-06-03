@@ -109,7 +109,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 
                 // Create 3D Text
                 if !self.identifiedLabels.contains(self.latestPrediction) {
-                    let node : SCNNode = self.createNewBubbleParentNode(self.latestPrediction)
+                    //let node : SCNNode = self.createNewBubbleParentNode(self.latestPrediction)
+                    let node : SCNNode = self.createPlaneNodeFromText(self.latestPrediction)
                     self.sceneView.scene.rootNode.addChildNode(node)
                     node.position = worldCoord
                     self.identifiedLabels.append(self.latestPrediction)
@@ -170,6 +171,32 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         bubbleNodeParent.constraints = [billboardConstraint]
         
         return bubbleNodeParent
+    }
+    
+    func createPlaneNodeFromText(_ text : String) -> SCNNode {
+        // TEXT BILLBOARD CONSTRAINT
+        let billboardConstraint = SCNBillboardConstraint()
+        billboardConstraint.freeAxes = SCNBillboardAxis.Y
+        
+        let plane = SCNPlane(width: 0.1, height: 0.06)
+        
+        let planeMaterial = SCNMaterial()
+        planeMaterial.diffuse.contents = UIColor.white
+        
+        planeMaterial.isDoubleSided = true
+        plane.materials = [planeMaterial]
+        
+        let (minBound, maxBound) = plane.boundingBox
+        
+        let planeNode = SCNNode(geometry: plane)
+        planeNode.pivot = SCNMatrix4MakeTranslation( (maxBound.x - minBound.x)/2, minBound.y, 0.01/2)
+
+        let planeNodeParent = SCNNode()
+        planeNodeParent.addChildNode(planeNode)
+        planeNodeParent.constraints = [billboardConstraint]
+
+        
+        return planeNodeParent
     }
     
     // MARK: - CoreML Vision Handling
