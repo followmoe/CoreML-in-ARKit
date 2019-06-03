@@ -13,7 +13,7 @@ import Vision
 import SpriteKit
 
 class ViewController: UIViewController, ARSCNViewDelegate {
-
+    
     // SCENE
     @IBOutlet var sceneView: ARSCNView!
     let bubbleDepth: Float = 0.01 // the 'depth' of 3D text
@@ -22,6 +22,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var confidence: VNConfidence = 0.0
     var debugConfidence: VNConfidence = 0.10
     var identifiedLabels = [String]() //keep track of all detected obejects so far
+    var touchLocation: CGPoint?
+    var objectToCreate: SCNNode?
+    var didTapOnNode = false
     
     // COREML
     var visionRequests = [VNRequest]()
@@ -51,6 +54,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(gestureRecognize:)))
         view.addGestureRecognizer(tapGesture)
         
+        let tapGestureCreate = UITapGestureRecognizer(target: self, action: #selector(self.handleTapToCreate(gestureRecognize:)))
+        view.addGestureRecognizer(tapGestureCreate)
         //////////////////////////////////////////////////
         
         // Set up Vision Model
@@ -62,7 +67,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let classificationRequest = VNCoreMLRequest(model: selectedModel, completionHandler: classificationCompleteHandler)
         classificationRequest.imageCropAndScaleOption = VNImageCropAndScaleOption.centerCrop // Crop from centre of images and scale to appropriate size.
         visionRequests = [classificationRequest]
-    
+        
         // Begin Loop to Update CoreML
         loopCoreMLUpdate()
     }
@@ -90,10 +95,11 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         super.didReceiveMemoryWarning()
         // Release any cached data, images, etc that aren't in use.
     }
-
+    
     // MARK: - ARSCNViewDelegate
     
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+        guard !didTapOnNode else { return }
         DispatchQueue.main.async {
             // Do any desired updates to SceneKit here.
             guard self.confidence >= self.minimumConfidenceThreshhold else {
@@ -130,49 +136,59 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     @objc func handleTap(gestureRecognize: UITapGestureRecognizer) {
         // HIT TEST : REAL WORLD
         // Get Screen Centre
+        touchLocation = gestureRecognize.location(in: sceneView)
+        testAndCreateNodeToPlace()
         
     }
     
-    func createNewBubbleParentNode(_ text : String) -> SCNNode {
-        // Warning: Creating 3D Text is susceptible to crashing. To reduce chances of crashing; reduce number of polygons, letters, smoothness, etc.
+    @objc func handleTapToCreate(gestureRecognize: UITapGestureRecognizer) {
+        // HIT TEST : REAL WORLD
+        // Get Screen Centre
+        touchLocation = gestureRecognize.location(in: sceneView)
+        placeNode()
         
-        // TEXT BILLBOARD CONSTRAINT
-        let billboardConstraint = SCNBillboardConstraint()
-        billboardConstraint.freeAxes = SCNBillboardAxis.Y
-        
-        // BUBBLE-TEXT
-        let bubble = SCNText(string: text, extrusionDepth: CGFloat(bubbleDepth))
-        var font = UIFont(name: "Futura", size: 0.15)
-        font = font?.withTraits(traits: .traitBold)
-        bubble.font = font
-        bubble.alignmentMode = kCAAlignmentCenter
-        bubble.firstMaterial?.diffuse.contents = UIColor.orange
-        bubble.firstMaterial?.specular.contents = UIColor.white
-        bubble.firstMaterial?.isDoubleSided = true
-        // bubble.flatness // setting this too low can cause crashes.
-        bubble.chamferRadius = CGFloat(bubbleDepth)
-        
-        // BUBBLE NODE
-        let (minBound, maxBound) = bubble.boundingBox
-        let bubbleNode = SCNNode(geometry: bubble)
-        // Centre Node - to Centre-Bottom point
-        bubbleNode.pivot = SCNMatrix4MakeTranslation( (maxBound.x - minBound.x)/2, minBound.y, bubbleDepth/2)
-        // Reduce default text size
-        bubbleNode.scale = SCNVector3Make(0.2, 0.2, 0.2)
-        
-        // CENTRE POINT NODE
-        let sphere = SCNSphere(radius: 0.005)
-        sphere.firstMaterial?.diffuse.contents = UIColor.cyan
-        let sphereNode = SCNNode(geometry: sphere)
-        
-        // BUBBLE PARENT NODE
-        let bubbleNodeParent = SCNNode()
-        bubbleNodeParent.addChildNode(bubbleNode)
-        bubbleNodeParent.addChildNode(sphereNode)
-        bubbleNodeParent.constraints = [billboardConstraint]
-        
-        return bubbleNodeParent
     }
+    
+    func testAndCreateNodeToPlace() {
+        
+        guard let location = touchLocation else { return }
+        
+        let hitTestResults = sceneView.hitTest(location, options: nil)
+        
+        guard let hitTestResult = hitTestResults.first, let nodeName = hitTestResult.node.name else { return }
+        
+        guard identifiedLabels.contains(nodeName) else { return }
+        
+        print(nodeName)
+        let scene = SCNScene(named: "art.scnassets/ship.scn")!
+        let shipNode = scene.rootNode.childNode(withName: "ship", recursively: true)
+        shipNode?.scale = SCNVector3(0.5, 0.5, 0.5)
+        shipNode?.pivot = SCNMatrix4MakeTranslation(0, 0, -1.0)
+        objectToCreate = shipNode
+        didTapOnNode = true
+        print(didTapOnNode)
+        
+        
+    }
+    
+    func placeNode() {
+        
+        guard let location = touchLocation else { return }
+        let hitTestResults = sceneView.hitTest(location, types: .existingPlaneUsingExtent)
+        guard let hitTestResult = hitTestResults.first else { return }
+        
+        let match = hitTestResult.worldTransform
+        
+        guard let object = objectToCreate else { return }
+        
+        object.position = SCNVector3(match.columns.3.x,match.columns.3.y + 0.2, match.columns.3.z)
+        
+        self.sceneView.scene.rootNode.addChildNode(object)
+        didTapOnNode = false
+        print(didTapOnNode)
+
+    }
+    
     
     func createPlaneNodeFromText(_ text : String) -> SCNNode {
         // TEXT BILLBOARD CONSTRAINT
@@ -194,7 +210,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         //SCNPlane
         let plane = SCNPlane(width: 0.1, height: 0.1)
-
+        
         let planeMaterial = SCNMaterial()
         planeMaterial.isDoubleSided = true
         planeMaterial.diffuse.contents = skScene
@@ -203,8 +219,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let planeNode = SCNNode(geometry: plane)
         let (minBound, maxBound) = plane.boundingBox
         planeNode.pivot = SCNMatrix4MakeTranslation( (maxBound.x - minBound.x)/2, minBound.y, 0.01/2)
-
+        
         let planeNodeParent = SCNNode()
+        planeNodeParent.name = text
         planeNodeParent.addChildNode(planeNode)
         planeNodeParent.constraints = [billboardConstraint]
         
@@ -248,13 +265,13 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         DispatchQueue.main.async {
             // Print Classifications
-            print(classifications)
-            print("--")
+//            print(classifications)
+//            print("--")
             
             
             
             // Store the latest prediction
-            var objectName:String = "…"
+            var objectName = "…"
             objectName = classifications.components(separatedBy: "-")[0]
             objectName = objectName.components(separatedBy: ",")[0]
             
@@ -268,7 +285,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             self.latestPrediction = objectName
             
             // Display Debug Text on screen
-            var debugText:String = ""
+            var debugText = ""
             debugText += classifications
             if self.confidence > self.debugConfidence {
                 self.debugTextView.text = debugText
@@ -284,7 +301,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     func updateCoreML() {
         ///////////////////////////
         // Get Camera Image as RGB
-        let pixbuff : CVPixelBuffer? = (sceneView.session.currentFrame?.capturedImage)
+        let pixbuff: CVPixelBuffer? = (sceneView.session.currentFrame?.capturedImage)
         if pixbuff == nil { return }
         let ciImage = CIImage(cvPixelBuffer: pixbuff!)
         // Note: Not entirely sure if the ciImage is being interpreted as RGB, but for now it works with the Inception model.
