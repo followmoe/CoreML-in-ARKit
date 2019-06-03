@@ -10,6 +10,7 @@ import UIKit
 import SceneKit
 import ARKit
 import Vision
+import SpriteKit
 
 class ViewController: UIViewController, ARSCNViewDelegate {
 
@@ -178,23 +179,34 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let billboardConstraint = SCNBillboardConstraint()
         billboardConstraint.freeAxes = SCNBillboardAxis.Y
         
-        let plane = SCNPlane(width: 0.1, height: 0.06)
+        //SK scene
+        let skScene = SKScene(size: CGSize(width: 200, height: 200))
+        skScene.backgroundColor = UIColor.clear
+        let rectangle = SKShapeNode(rect: CGRect(x: 0, y: 0, width: 200, height: 200), cornerRadius: 10)
+        rectangle.fillColor = UIColor.black
+        let labelNode = SKLabelNode(text: text)
+        labelNode.yScale = -1
+        labelNode.fontSize = 20
+        labelNode.fontName = "San Fransisco"
+        labelNode.position = CGPoint(x:100,y:100)
+        skScene.addChild(rectangle)
+        skScene.addChild(labelNode)
         
+        //SCNPlane
+        let plane = SCNPlane(width: 0.1, height: 0.1)
+
         let planeMaterial = SCNMaterial()
-        planeMaterial.diffuse.contents = UIColor.white
-        
         planeMaterial.isDoubleSided = true
+        planeMaterial.diffuse.contents = skScene
         plane.materials = [planeMaterial]
         
-        let (minBound, maxBound) = plane.boundingBox
-        
         let planeNode = SCNNode(geometry: plane)
+        let (minBound, maxBound) = plane.boundingBox
         planeNode.pivot = SCNMatrix4MakeTranslation( (maxBound.x - minBound.x)/2, minBound.y, 0.01/2)
 
         let planeNodeParent = SCNNode()
         planeNodeParent.addChildNode(planeNode)
         planeNodeParent.constraints = [billboardConstraint]
-
         
         return planeNodeParent
     }
