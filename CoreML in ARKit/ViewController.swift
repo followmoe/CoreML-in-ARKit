@@ -267,18 +267,13 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         DispatchQueue.main.async {
             // Print Classifications
-//            print(classifications)
-//            print("--")
-            
-            
+            //print(classifications)
+            //print("--")
             
             // Store the latest prediction
             var objectName = "…"
             objectName = classifications.components(separatedBy: "-")[0]
             objectName = objectName.components(separatedBy: ",")[0]
-            
-            
-            
             
             guard let firstObservation = observations.first, let observation = firstObservation as? VNClassificationObservation else {
                 return
@@ -294,9 +289,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             } else {
                 self.debugTextView.text = "null"
             }
-            
-            
-            
+
         }
     }
     
