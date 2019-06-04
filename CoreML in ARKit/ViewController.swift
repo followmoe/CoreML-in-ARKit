@@ -51,11 +51,11 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         //////////////////////////////////////////////////
         // Tap Gesture Recognizer
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(gestureRecognize:)))
-        view.addGestureRecognizer(tapGesture)
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(gestureRecognizer:)))
+        sceneView.addGestureRecognizer(tapGesture)
         
-        let tapGestureCreate = UITapGestureRecognizer(target: self, action: #selector(self.handleTapToCreate(gestureRecognize:)))
-        view.addGestureRecognizer(tapGestureCreate)
+        let tapGestureCreate = UITapGestureRecognizer(target: self, action: #selector(self.handleTapToCreate(gestureRecognizer:)))
+        sceneView.addGestureRecognizer(tapGestureCreate)
         //////////////////////////////////////////////////
         
         // Set up Vision Model
@@ -133,19 +133,21 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     // MARK: - Interaction
     
-    @objc func handleTap(gestureRecognize: UITapGestureRecognizer) {
+    @objc func handleTap(gestureRecognizer: UITapGestureRecognizer) {
         // HIT TEST : REAL WORLD
         // Get Screen Centre
-        touchLocation = gestureRecognize.location(in: sceneView)
+        touchLocation = gestureRecognizer.location(in: sceneView)
         testAndCreateNodeToPlace()
         
     }
     
-    @objc func handleTapToCreate(gestureRecognize: UITapGestureRecognizer) {
+    @objc func handleTapToCreate(gestureRecognizer: UITapGestureRecognizer) {
         // HIT TEST : REAL WORLD
         // Get Screen Centre
-        touchLocation = gestureRecognize.location(in: sceneView)
-        placeNode()
+        if gestureRecognizer.state == .ended {
+            touchLocation = gestureRecognizer.location(in: sceneView)
+            placeNode()
+        }
         
     }
     
@@ -290,7 +292,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             if self.confidence > self.debugConfidence {
                 self.debugTextView.text = debugText
             } else {
-                self.debugTextView.text = "Penis"
+                self.debugTextView.text = "null"
             }
             
             
@@ -325,8 +327,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
 
 extension UIFont {
     // Based on: https://stackoverflow.com/questions/4713236/how-do-i-set-bold-and-italic-on-uilabel-of-iphone-ipad
-    func withTraits(traits:UIFontDescriptorSymbolicTraits...) -> UIFont {
-        let descriptor = self.fontDescriptor.withSymbolicTraits(UIFontDescriptorSymbolicTraits(traits))
+    func withTraits(traits:UIFontDescriptor.SymbolicTraits...) -> UIFont {
+        let descriptor = self.fontDescriptor.withSymbolicTraits(UIFontDescriptor.SymbolicTraits(traits))
         return UIFont(descriptor: descriptor!, size: 0)
     }
 }
