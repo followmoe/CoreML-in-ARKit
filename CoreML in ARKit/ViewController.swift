@@ -1,11 +1,3 @@
-//
-//  ViewController.swift
-//  CoreML in ARKit
-//
-//  Created by Hanley Weng on 14/7/17.
-//  Copyright © 2017 CompanyName. All rights reserved.
-//
-
 import UIKit
 import SceneKit
 import ARKit
@@ -49,17 +41,17 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         // Enable Default Lighting - makes the 3D text a bit poppier.
         sceneView.autoenablesDefaultLighting = true
         
-        //////////////////////////////////////////////////
         // Tap Gesture Recognizer
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(self.handleTapToPlace(gestureRecognizer:)))
         sceneView.addGestureRecognizer(tapGesture)
         
 //        let tapGestureCreate = UITapGestureRecognizer(target: self, action: #selector(self.handleTapToCreate(gestureRecognizer:)))
 //        sceneView.addGestureRecognizer(tapGestureCreate)
-        //////////////////////////////////////////////////
+
+
         
         // Set up Vision Model
-        guard let selectedModel = try? VNCoreMLModel(for: Inceptionv3().model) else { // (Optional) This can be replaced with other models on https://developer.apple.com/machine-learning/
+        guard let selectedModel = try? VNCoreMLModel(for: Inceptionv3().model) else {
             fatalError("Could not load model. Ensure model has been drag and dropped (copied) to XCode Project from https://developer.apple.com/machine-learning/ . Also ensure the model is part of a target (see: https://stackoverflow.com/questions/45884085/model-is-not-part-of-any-target-add-the-model-to-a-target-to-enable-generation ")
         }
         
@@ -196,7 +188,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     
     func createPlaneNodeFromText(_ text : String) -> SCNNode {
-        // TEXT BILLBOARD CONSTRAINT
+        // Text Billboard Constraints
         let billboardConstraint = SCNBillboardConstraint()
         billboardConstraint.freeAxes = SCNBillboardAxis.Y
         
@@ -296,20 +288,14 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
     
     func updateCoreML() {
-        ///////////////////////////
         // Get Camera Image as RGB
         let pixbuff: CVPixelBuffer? = (sceneView.session.currentFrame?.capturedImage)
         if pixbuff == nil { return }
         let ciImage = CIImage(cvPixelBuffer: pixbuff!)
-        // Note: Not entirely sure if the ciImage is being interpreted as RGB, but for now it works with the Inception model.
-        // Note2: Also uncertain if the pixelBuffer should be rotated before handing off to Vision (VNImageRequestHandler) - regardless, for now, it still works well with the Inception model.
         
-        ///////////////////////////
         // Prepare CoreML/Vision Request
         let imageRequestHandler = VNImageRequestHandler(ciImage: ciImage, options: [:])
-        // let imageRequestHandler = VNImageRequestHandler(cgImage: cgImage!, orientation: myOrientation, options: [:]) // Alternatively; we can convert the above to an RGB CGImage and use that. Also UIInterfaceOrientation can inform orientation values.
         
-        ///////////////////////////
         // Run Image Request
         do {
             try imageRequestHandler.perform(self.visionRequests)
