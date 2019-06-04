@@ -24,7 +24,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var identifiedLabels = [String]() //keep track of all detected obejects so far
     var touchLocation: CGPoint?
     var objectToCreate: SCNNode?
-    var didTapOnNode = false
+    var isScanning = true
     
     // COREML
     var visionRequests = [VNRequest]()
@@ -51,11 +51,11 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         //////////////////////////////////////////////////
         // Tap Gesture Recognizer
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(gestureRecognizer:)))
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(self.handleTapToPlace(gestureRecognizer:)))
         sceneView.addGestureRecognizer(tapGesture)
         
-        let tapGestureCreate = UITapGestureRecognizer(target: self, action: #selector(self.handleTapToCreate(gestureRecognizer:)))
-        sceneView.addGestureRecognizer(tapGestureCreate)
+//        let tapGestureCreate = UITapGestureRecognizer(target: self, action: #selector(self.handleTapToCreate(gestureRecognizer:)))
+//        sceneView.addGestureRecognizer(tapGestureCreate)
         //////////////////////////////////////////////////
         
         // Set up Vision Model
@@ -99,25 +99,25 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     // MARK: - ARSCNViewDelegate
     
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
-        guard !didTapOnNode else { return }
+        guard isScanning else { return }
         DispatchQueue.main.async {
             // Do any desired updates to SceneKit here.
             guard self.confidence >= self.minimumConfidenceThreshhold else {
                 return
             }
-            let screenCentre : CGPoint = CGPoint(x: self.sceneView.bounds.midX, y: self.sceneView.bounds.midY)
+            let screenCentre = CGPoint(x: self.sceneView.bounds.midX, y: self.sceneView.bounds.midY)
             
-            let arHitTestResults : [ARHitTestResult] = self.sceneView.hitTest(screenCentre, types: [.featurePoint]) // Alternatively, we could use '.existingPlaneUsingExtent' for more grounded hit-test-points.
+            let arHitTestResults = self.sceneView.hitTest(screenCentre, types: [.featurePoint]) // Alternatively, we could use '.existingPlaneUsingExtent' for more grounded hit-test-points.
             
             if let closestResult = arHitTestResults.first {
                 // Get Coordinates of HitTest
-                let transform : matrix_float4x4 = closestResult.worldTransform
-                let worldCoord : SCNVector3 = SCNVector3Make(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
+                let transform = closestResult.worldTransform
+                let worldCoord = SCNVector3Make(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
                 
                 // Create 3D Text
                 if !self.identifiedLabels.contains(self.latestPrediction) {
                     //let node : SCNNode = self.createNewBubbleParentNode(self.latestPrediction)
-                    let node : SCNNode = self.createPlaneNodeFromText(self.latestPrediction)
+                    let node = self.createPlaneNodeFromText(self.latestPrediction)
                     self.sceneView.scene.rootNode.addChildNode(node)
                     node.position = worldCoord
                     self.identifiedLabels.append(self.latestPrediction)
@@ -133,17 +133,18 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     // MARK: - Interaction
     
-    @objc func handleTap(gestureRecognizer: UITapGestureRecognizer) {
-        // HIT TEST : REAL WORLD
-        // Get Screen Centre
-        touchLocation = gestureRecognizer.location(in: sceneView)
-        testAndCreateNodeToPlace()
+    @objc func handleTapToPlace(gestureRecognizer: UITapGestureRecognizer) {
+        
+        if gestureRecognizer.state == .ended {
+            touchLocation = gestureRecognizer.location(in: sceneView)
+            testAndCreateNodeToPlace()
+        }
+        
         
     }
     
     @objc func handleTapToCreate(gestureRecognizer: UITapGestureRecognizer) {
-        // HIT TEST : REAL WORLD
-        // Get Screen Centre
+        
         if gestureRecognizer.state == .ended {
             touchLocation = gestureRecognizer.location(in: sceneView)
             placeNode()
@@ -157,18 +158,20 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         let hitTestResults = sceneView.hitTest(location, options: nil)
         
-        guard let hitTestResult = hitTestResults.first, let nodeName = hitTestResult.node.name else { return }
+        guard let hitTestResult = hitTestResults.first else { return }
         
-        guard identifiedLabels.contains(nodeName) else { return }
+        let node = hitTestResult.node
         
-        print(nodeName)
+        print(node.geometry?.name ?? node)
+        guard let geometry = node.geometry, let name = geometry.name, identifiedLabels.contains(name) else { return }
+        
         let scene = SCNScene(named: "art.scnassets/ship.scn")!
         let shipNode = scene.rootNode.childNode(withName: "ship", recursively: true)
         shipNode?.scale = SCNVector3(0.5, 0.5, 0.5)
         shipNode?.pivot = SCNMatrix4MakeTranslation(0, 0, -1.0)
         objectToCreate = shipNode
-        didTapOnNode = true
-        print(didTapOnNode)
+        isScanning = false
+        print(isScanning)
         
         
     }
@@ -186,8 +189,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         object.position = SCNVector3(match.columns.3.x,match.columns.3.y + 0.2, match.columns.3.z)
         
         self.sceneView.scene.rootNode.addChildNode(object)
-        didTapOnNode = false
-        print(didTapOnNode)
+        isScanning = true
+        print(isScanning)
 
     }
     
@@ -212,7 +215,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         //SCNPlane
         let plane = SCNPlane(width: 0.1, height: 0.1)
-        
+        plane.name = text
         let planeMaterial = SCNMaterial()
         planeMaterial.isDoubleSided = true
         planeMaterial.diffuse.contents = skScene
@@ -223,7 +226,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         planeNode.pivot = SCNMatrix4MakeTranslation( (maxBound.x - minBound.x)/2, minBound.y, 0.01/2)
         
         let planeNodeParent = SCNNode()
-        planeNodeParent.name = text
         planeNodeParent.addChildNode(planeNode)
         planeNodeParent.constraints = [billboardConstraint]
         
