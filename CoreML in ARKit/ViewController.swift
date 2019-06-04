@@ -42,11 +42,12 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         sceneView.autoenablesDefaultLighting = true
         
         // Tap Gesture Recognizer
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(self.handleTapToPlace(gestureRecognizer:)))
-        sceneView.addGestureRecognizer(tapGesture)
+        let longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(self.handleTapToPlace(gestureRecognizer:)))
+        longPressGesture.minimumPressDuration = 1.0
+        sceneView.addGestureRecognizer(longPressGesture)
         
-//        let tapGestureCreate = UITapGestureRecognizer(target: self, action: #selector(self.handleTapToCreate(gestureRecognizer:)))
-//        sceneView.addGestureRecognizer(tapGestureCreate)
+        let tapGestureCreate = UITapGestureRecognizer(target: self, action: #selector(self.handleTapToCreate(gestureRecognizer:)))
+        sceneView.addGestureRecognizer(tapGestureCreate)
 
 
         
@@ -91,8 +92,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     // MARK: - ARSCNViewDelegate
     
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
-        guard isScanning else { return }
+        
         DispatchQueue.main.async {
+            guard self.isScanning else { return }
             // Do any desired updates to SceneKit here.
             guard self.confidence >= self.minimumConfidenceThreshhold else {
                 return
@@ -141,7 +143,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             touchLocation = gestureRecognizer.location(in: sceneView)
             placeNode()
         }
-        
     }
     
     func testAndCreateNodeToPlace() {
@@ -154,7 +155,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         let node = hitTestResult.node
         
-        print(node.geometry?.name ?? node)
         guard let geometry = node.geometry, let name = geometry.name, identifiedLabels.contains(name) else { return }
         
         let scene = SCNScene(named: "art.scnassets/ship.scn")!
@@ -170,8 +170,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     func placeNode() {
         
-        guard let location = touchLocation else { return }
-        let hitTestResults = sceneView.hitTest(location, types: .existingPlaneUsingExtent)
+        guard let location = touchLocation, !isScanning else { return }
+        let hitTestResults = sceneView.hitTest(location, types: .existingPlane)
         guard let hitTestResult = hitTestResults.first else { return }
         
         let match = hitTestResult.worldTransform
